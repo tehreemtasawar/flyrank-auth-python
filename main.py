@@ -8,6 +8,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from supabase import create_client, Client
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 class CreateTask(BaseModel):
     title: Optional[str] = None
 
@@ -144,3 +150,54 @@ def delete_task(task_id: int):
     cur.close()
     conn.close()
     return JSONResponse(status_code=204, content=None)
+
+class SignupRequest(BaseModel):
+    email: Optional[str] = None
+    password: Optional[str] = None
+
+@app.post("/auth/signup", summary="Create a new user account")
+def signup(credentials: SignupRequest):
+    if not credentials.email or not credentials.password:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Email and password are required"}
+        )
+    try:
+        result = supabase.auth.sign_up({
+            "email": credentials.email,
+            "password": credentials.password
+        })
+        return JSONResponse(status_code=201, content={"user": result.user.model_dump(mode="json")})
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+class LoginRequest(BaseModel):
+    email: Optional[str] = None
+    password: Optional[str] = None
+
+@app.post("/auth/login", summary="Authenticate user and return JWT")
+def login(credentials: LoginRequest):
+    if not credentials.email or not credentials.password:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Email and password are required"}
+        )
+    try:
+        result = supabase.auth.sign_in_with_password({
+            "email": credentials.email,
+            "password": credentials.password
+        })
+        return JSONResponse(
+            status_code=200,
+            content={
+                "access_token": result.session.access_token,
+                "refresh_token": result.session.refresh_token
+            }
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Invalid login credentials"}
+        )
