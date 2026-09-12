@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
+from fastapi import Header
 import psycopg2
 import os
 from dotenv import load_dotenv
@@ -201,3 +202,17 @@ def login(credentials: LoginRequest):
             status_code=401,
             content={"error": "Invalid login credentials"}
         )
+
+@app.get("/public/info", summary="Public info, no auth required")
+def public_info():
+    return {"message": "Welcome stranger! This info is public."}
+
+@app.get("/protected/profile", summary="Get private profile data")
+def protected_profile(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Access token required"}
+        )
+    token = authorization.split(" ")[1]
+    return {"message": "Token received (not yet verified)", "token_preview": token[:10] + "..."}    
