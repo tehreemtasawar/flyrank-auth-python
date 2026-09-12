@@ -6,10 +6,22 @@ from fastapi import Header
 import psycopg2
 import os
 from dotenv import load_dotenv
+from fastapi import FastAPI, Header, Depends, HTTPException
 
 load_dotenv()
 
 from supabase import create_client, Client
+from fastapi import Depends
+
+def verify_token(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Access token required")
+    token = authorization.split(" ")[1]
+    try:
+        user_response = supabase.auth.get_user(token)
+        return user_response.user
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -208,11 +220,14 @@ def public_info():
     return {"message": "Welcome stranger! This info is public."}
 
 @app.get("/protected/profile", summary="Get private profile data")
-def protected_profile(authorization: Optional[str] = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"error": "Access token required"}
-        )
-    token = authorization.split(" ")[1]
-    return {"message": "Token received (not yet verified)", "token_preview": token[:10] + "..."}    
+def protected_profile(user=Depends(verify_token)):
+    return {"id": user.id, "email": user.email, "created_at": user.created_at.isoformat()}
+
+@app.get("/protected/dashboard", summary="Example second protected route")
+def protected_dashboard(user=Depends(verify_token)):
+    return {"message": f"Welcome to your dashboard, {user.email}"}
+
+@app.post("/auth/logout", summary="Log out the current user")
+def logout(user=Depends(verify_token)):
+    supabase.auth.sign_out()
+    return JSONResponse(status_code=204, content=None)
