@@ -1,10 +1,11 @@
 # Task API
 
-A lightweight CRUD API for managing a to-do list, built with Python and FastAPI. This project was built as part of FlyRank AI's Backend Engineering internship (Week 2, Assignment 1), and covers the full create-read-update-delete cycle with proper validation and status codes.It was later extended in Week 3 to use a real SQLite database instead of in-memory storage, and further containerized with Docker and Postgres.
+A lightweight CRUD API for managing a to-do list, built with Python and FastAPI. This project was built as part of FlyRank AI's Backend Engineering internship (Week 2, Assignment 1), and covers the full create-read-update-delete cycle with proper validation and status codes. It was later extended in Week 3 to use a real SQLite database instead of in-memory storage, and further containerized with Docker and Postgres. In Week 4, it was extended again to add secure user authentication with Supabase Auth, protecting private routes with JWT bearer tokens.
 
 ## Features
 
 - Full CRUD operations on tasks, stored in a Postgres database, fully containerized with Docker
+- Secure signup, login, and logout using Supabase Auth, with JWT-protected routes
 - Input validation with clear error responses
 - Interactive API documentation via Swagger UI
 - Tested through both curl and Swagger UI
@@ -13,7 +14,8 @@ A lightweight CRUD API for managing a to-do list, built with Python and FastAPI.
 
 Requirements: Docker Desktop
 
-1. Copy `.env.example` to `.env` (already configured with default local values)
+1. Copy `.env.example` to `.env`, and fill in your own Supabase URL and anon key (create a free project at supabase.com)
+
 2. Start the whole stack:
 
    docker compose up --build
@@ -22,15 +24,21 @@ Requirements: Docker Desktop
 
 ## Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| GET | / | API info |
-| GET | /health | Health check |
-| GET | /tasks | List all tasks |
-| GET | /tasks/{id} | Get a single task |
-| POST | /tasks | Create a new task |
-| PUT | /tasks/{id} | Update a task |
-| DELETE | /tasks/{id} | Delete a task |
+| Method | Path | Description | Auth Required |
+|---|---|---|---|
+| GET | / | API info | No |
+| GET | /health | Health check | No |
+| GET | /tasks | List all tasks | No |
+| GET | /tasks/{id} | Get a single task | No |
+| POST | /tasks | Create a new task | No |
+| PUT | /tasks/{id} | Update a task | No |
+| DELETE | /tasks/{id} | Delete a task | No |
+| POST | /auth/signup | Create a new user account | No |
+| POST | /auth/login | Authenticate and return a JWT | No |
+| POST | /auth/logout | End the user's session | Yes |
+| GET | /public/info | Public, open data | No |
+| GET | /protected/profile | Read private profile data | Yes |
+| GET | /protected/dashboard | Example second protected route | Yes |
 
 ## Example Request
 
@@ -77,6 +85,19 @@ The app becomes available at http://localhost:8000, and Postgres runs alongside 
 
 **Persistence proven:** I created a task via POST, then ran `docker compose down` (removing both containers entirely) followed by `docker compose up --build` (rebuilding and recreating fresh containers). The task I created was still present in `GET /tasks` afterward, confirming data survives both an app restart and a full container restart, thanks to the named Docker volume (`postgres_data`) that stores Postgres's actual data files outside the container itself.
 
+## Authentication
+
+This project uses Supabase Auth as its Identity Provider, so passwords and tokens are never handled directly in this code.
+
+**How it works:** A client signs up or logs in by sending an email and password to `/auth/signup` or `/auth/login`, which forward the request to Supabase. On successful login, Supabase returns a signed JWT (access token). The client then sends this token in the `Authorization: Bearer <token>` header on any protected route.
+
+**Token verification:** A reusable dependency (`verify_token`) is applied to every protected route. It extracts the token, asks Supabase to confirm it's genuine, and either lets the request through with the user's data attached, or rejects it with a `401`.
+
+**Status codes:** `201` on signup, `200` on login/protected reads, `204` on logout, `400` on missing signup/login fields, `401` on a missing, malformed, or invalid/expired token.
+
+**Swagger bearer auth:** `/docs` shows a padlock next to every protected route. Clicking "Authorize" and pasting a token lets you call protected routes directly from the browser.
+
+![Swagger Auth](auth-swagger-screenshot.png)
 
 ## What I Learned
 
